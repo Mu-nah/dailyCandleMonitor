@@ -1,0 +1,9 @@
+flask
+python-dotenv
+requests
+pandas
+ta
+gspread
+oauth2client
+python-binance==1.0.17
+pybit
