@@ -1,31 +1,23 @@
-# 🚀 Daily Candle Flip Bot (BTC, ETH, GOLD)
+# 🚀 Gold Daily Candle Flip Bot (XAU/USD, Swissquote)
 from flask import Flask
-import threading, os, time, requests, pandas as pd
+import threading, os, time, requests
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-from binance.client import Client
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Daily Candle Bot Running!"
+    return "Gold Candle Bot Running!"
 
 def run_bot():
     # --- Load env vars ---
     load_dotenv()
-    API_KEY = os.getenv("BINANCE_API_KEY")
-    API_SECRET = os.getenv("BINANCE_API_SECRET")
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-    BINANCE_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
-    SWISSQUOTE_SYMBOLS = ["XAU/USD"]
-    SYMBOLS = BINANCE_SYMBOLS + SWISSQUOTE_SYMBOLS
-
-    client = Client(API_KEY, API_SECRET)
-    last_direction = {}
-    gold_candle = None  # Track Gold forming daily candle
+    last_direction = None
+    gold_candle = None  # Track forming daily candle
 
     # --- Telegram notifier ---
     def send_telegram(msg: str):
@@ -38,27 +30,15 @@ def run_bot():
         except Exception as e:
             print("Telegram error:", e)
 
-    # --- Binance forming daily candle ---
-    def get_today_candle_binance(symbol):
-        klines = client.futures_klines(symbol=symbol, interval="1d", limit=2)
-        df = pd.DataFrame(klines, columns=[
-            'time','open','high','low','close','volume',
-            'close_time','qav','trades','tbb','tbq','ignore'
-        ])
-        for col in ['open','high','low','close']:
-            df[col] = df[col].astype(float)
-        df['time'] = pd.to_datetime(df['time'], unit='ms', utc=True)
-        return df.iloc[-1]  # Current forming candle
-
     # --- Swissquote forming daily candle ---
-    def get_today_candle_swissquote(symbol):
+    def get_today_candle():
         nonlocal gold_candle
         url = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/XAU/USD"
         r = requests.get(url, timeout=10).json()
         price = float(r[0]["spreadProfilePrices"][0]["bid"])  # Use bid as reference
 
         now = datetime.utcnow().replace(tzinfo=timezone.utc)
-        wat_time = now + timedelta(hours=1)  # Convert UTC → WAT
+        wat_time = now + timedelta(hours=1)  # UTC → WAT
         today_date = wat_time.date()
 
         # Reset Gold daily candle at 1AM WAT (00:00 UTC)
@@ -81,32 +61,20 @@ def run_bot():
     # --- main loop ---
     while True:
         try:
-            for symbol in SYMBOLS:
-                if symbol in BINANCE_SYMBOLS:
-                    today = get_today_candle_binance(symbol)
-                    today_date = today['time'].date()
-                    open_price, close_price = today['open'], today['close']
-                elif symbol in SWISSQUOTE_SYMBOLS:
-                    today = get_today_candle_swissquote(symbol)
-                    today_date = today["date"]
-                    open_price, close_price = today['open'], today['close']
-                else:
-                    continue
+            today = get_today_candle()
+            open_price, close_price = today['open'], today['close']
+            direction = "bullish" if close_price > open_price else "bearish"
 
-                # Detect bullish/bearish
-                direction = "bullish" if close_price > open_price else "bearish"
-                key = f"{symbol}_{today_date}"
+            # Alert if flip happens
+            if last_direction is not None and last_direction != direction:
+                msg = (f"⚡ *GOLD (XAU/USD)* Daily Candle Flip!\n"
+                       f"📅 {today['date']}\n"
+                       f"Now: {direction.upper()} "
+                       f"(O:{open_price} → C:{close_price})\n"
+                       f"H:{today['high']} L:{today['low']}")
+                send_telegram(msg)
 
-                # Alert only if flip occurs
-                if last_direction.get(key) != direction:
-                    if last_direction.get(key) is not None:
-                        msg = (f"⚡ *{symbol}* Daily Candle Flip!\n"
-                               f"📅 {today_date}\n"
-                               f"Now: {direction.upper()} "
-                               f"(O:{open_price} → C:{close_price})")
-                        send_telegram(msg)
-
-                last_direction[key] = direction  # Update
+            last_direction = direction
 
         except Exception as e:
             print("Error:", e)
