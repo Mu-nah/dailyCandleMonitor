@@ -27,8 +27,8 @@ def run_bot():
                 data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"},
                 timeout=10
             )
-        except Exception as e:
-            print("Telegram error:", e)
+        except:
+            pass  # silence all errors
 
     # --- Swissquote forming daily candle ---
     def get_today_candle():
@@ -76,8 +76,8 @@ def run_bot():
 
             last_direction = direction
 
-        except Exception as e:
-            print("Error:", e)
+        except:
+            pass  # silence all errors
 
         time.sleep(300)  # Check every 5 minutes
 
