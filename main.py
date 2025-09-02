@@ -28,7 +28,7 @@ def run_bot():
                 timeout=10
             )
         except:
-            pass  # silence all errors
+            pass  # fail silently, no logging
 
     # --- Swissquote forming daily candle ---
     def get_today_candle():
@@ -65,7 +65,7 @@ def run_bot():
             open_price, close_price = today['open'], today['close']
             direction = "bullish" if close_price > open_price else "bearish"
 
-            # 🔄 Alert on every flip, even multiple times a day
+            # Alert if flip happens
             if last_direction is not None and last_direction != direction:
                 msg = (f"⚡ *GOLD (XAU/USD)* Daily Candle Flip!\n"
                        f"📅 {today['date']}\n"
@@ -77,7 +77,7 @@ def run_bot():
             last_direction = direction
 
         except:
-            pass  # silence all errors
+            pass  # ignore errors silently
 
         time.sleep(300)  # Check every 5 minutes
 
