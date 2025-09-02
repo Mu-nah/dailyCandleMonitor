@@ -65,7 +65,7 @@ def run_bot():
             open_price, close_price = today['open'], today['close']
             direction = "bullish" if close_price > open_price else "bearish"
 
-            # Alert if flip happens
+            # 🔄 Alert on every flip, even multiple times a day
             if last_direction is not None and last_direction != direction:
                 msg = (f"⚡ *GOLD (XAU/USD)* Daily Candle Flip!\n"
                        f"📅 {today['date']}\n"
