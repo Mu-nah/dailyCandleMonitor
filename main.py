@@ -1,4 +1,4 @@
-# 🚀 Multi-Pair Daily Candle Flip Bot (Swissquote, Fixed)
+# 🚀 Multi-Pair Daily Candle Flip Bot (Swissquote)
 from flask import Flask
 import threading, os, time, requests
 from datetime import datetime, timezone, timedelta
@@ -11,19 +11,17 @@ def home():
     return "Daily Candle Bot Running!"
 
 def run_bot():
-    # --- Load env vars ---
     load_dotenv()
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
     CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-    # Correct Swissquote symbols (no slash)
-    SYMBOLS = ["XAUUSD", "GBPUSD", "AUDUSD", "GBPJPY", "EURUSD"]
+    # Pairs to monitor
+    SYMBOLS = ["XAU/USD", "GBP/USD", "AUD/USD", "GBP/JPY", "USD/JPY"]
 
     # Store per-symbol state
-    candles = {}
-    last_direction = {}
+    candles = {}         # {symbol: {open, high, low, close, date}}
+    last_direction = {}  # {symbol: "bullish"/"bearish"}
 
-    # --- Telegram notifier ---
     def send_telegram(msg: str):
         try:
             requests.post(
@@ -32,19 +30,18 @@ def run_bot():
                 timeout=10
             )
         except:
-            pass
+            pass  # silent fail
 
-    # --- Get forming candle from Swissquote ---
     def get_today_candle(symbol):
+        nonlocal candles
         url = f"https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/{symbol}"
         r = requests.get(url, timeout=10).json()
         price = float(r[0]["spreadProfilePrices"][0]["bid"])
 
         now = datetime.utcnow().replace(tzinfo=timezone.utc)
-        wat_time = now + timedelta(hours=1)  # UTC → WAT
+        wat_time = now + timedelta(hours=1)  # convert to WAT
         today_date = wat_time.date()
 
-        # Reset daily candle at 1 AM WAT (00:00 UTC)
         if symbol not in candles or candles[symbol]["date"] != today_date:
             candles[symbol] = {
                 "date": today_date,
@@ -61,29 +58,32 @@ def run_bot():
 
         return candles[symbol]
 
-    # --- main loop ---
     while True:
         try:
             for symbol in SYMBOLS:
                 today = get_today_candle(symbol)
                 open_price, close_price = today['open'], today['close']
+
+                # Skip neutral candles
+                if close_price == open_price:
+                    continue
+
                 direction = "bullish" if close_price > open_price else "bearish"
 
-                if last_direction.get(symbol) is not None and last_direction[symbol] != direction:
+                if last_direction.get(symbol) and last_direction[symbol] != direction:
                     msg = (f"⚡ *{symbol}* Daily Candle Flip!\n"
                            f"📅 {today['date']}\n"
                            f"Now: {direction.upper()} "
                            f"(O:{open_price} → C:{close_price})\n"
-                           f"H:{today['high']} L:{today['low']}")
+                           f"H:{today['high']}  L:{today['low']}")
                     send_telegram(msg)
 
                 last_direction[symbol] = direction
 
-        except Exception as e:
-            # fail silently
+        except:
             pass
 
-        time.sleep(300)  # Check every 5 minutes
+        time.sleep(300)  # check every 5 minutes
 
 
 # Run bot in background thread
