@@ -16,7 +16,7 @@ def run_bot():
     CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
     # Pairs to monitor
-    SYMBOLS = ["XAU/USD", "GBP/USD", "AUD/USD", "GBP/JPY", "USD/JPY"]
+    SYMBOLS = ["XAU/USD", "GBP/USD", "AUD/USD", "GBP/JPY", "USD/JPY", "EUR/USD"]
 
     # Store per-symbol state
     candles = {}         # {symbol: {open, high, low, close, date}}
