@@ -1,4 +1,4 @@
-# 🚀 Multi-Pair Daily Candle Flip Bot (Swissquote)
+# 🚀 Multi-Pair Daily Candle Flip Bot (Swissquote, every flip)
 from flask import Flask
 import threading, os, time, requests
 from datetime import datetime, timezone, timedelta
@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Daily Candle Bot Running!"
+    return "Daily Candle Flip Bot Running!"
 
 def run_bot():
     load_dotenv()
@@ -18,8 +18,8 @@ def run_bot():
     # Pairs to monitor
     SYMBOLS = ["XAU/USD", "GBP/USD", "AUD/USD", "GBP/JPY", "USD/JPY", "EUR/USD"]
 
-    # Store per-symbol state
-    candles = {}         # {symbol: {open, high, low, close, date}}
+    # States
+    candles = {}         # {symbol: {date, open, high, low, close}}
     last_direction = {}  # {symbol: "bullish"/"bearish"}
 
     def send_telegram(msg: str):
@@ -33,19 +33,20 @@ def run_bot():
             pass  # silent fail
 
     def get_today_candle(symbol):
-        nonlocal candles
+        """Fetch forming daily candle for symbol"""
         url = f"https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument/{symbol}"
         r = requests.get(url, timeout=10).json()
         price = float(r[0]["spreadProfilePrices"][0]["bid"])
 
+        # Convert to WAT
         now = datetime.utcnow().replace(tzinfo=timezone.utc)
-        wat_time = now + timedelta(hours=1)  # convert to WAT
+        wat_time = now + timedelta(hours=1)
         today_date = wat_time.date()
 
+        # Reset candle at 1:00am WAT (00:00 UTC)
         if symbol not in candles or candles[symbol]["date"] != today_date:
             candles[symbol] = {
                 "date": today_date,
-                "time": wat_time,
                 "open": price,
                 "high": price,
                 "low": price,
@@ -62,14 +63,14 @@ def run_bot():
         try:
             for symbol in SYMBOLS:
                 today = get_today_candle(symbol)
-                open_price, close_price = today['open'], today['close']
+                open_price, close_price = today["open"], today["close"]
 
-                # Skip neutral candles
                 if close_price == open_price:
-                    continue
+                    continue  # skip neutral
 
                 direction = "bullish" if close_price > open_price else "bearish"
 
+                # Send alert on every flip
                 if last_direction.get(symbol) and last_direction[symbol] != direction:
                     msg = (f"⚡ *{symbol}* Daily Candle Flip!\n"
                            f"📅 {today['date']}\n"
@@ -78,15 +79,15 @@ def run_bot():
                            f"H:{today['high']}  L:{today['low']}")
                     send_telegram(msg)
 
+                # Always update state
                 last_direction[symbol] = direction
 
         except:
-            pass
+            pass  # keep bot alive
 
-        time.sleep(300)  # check every 5 minutes
+        time.sleep(300)  # check every 5 mins
 
-
-# Run bot in background thread
+# Run bot in background
 threading.Thread(target=run_bot, daemon=True).start()
 
 if __name__ == "__main__":
