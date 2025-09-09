@@ -38,13 +38,16 @@ def run_bot():
         r = requests.get(url, timeout=10).json()
         price = float(r[0]["spreadProfilePrices"][0]["bid"])
 
-        # Convert to WAT
+        # Convert to WAT (UTC+1)
         now = datetime.utcnow().replace(tzinfo=timezone.utc)
         wat_time = now + timedelta(hours=1)
         today_date = wat_time.date()
 
-        # Reset candle at 1:00am WAT (00:00 UTC)
-        if symbol not in candles or candles[symbol]["date"] != today_date:
+        # Reset candle at 12:00am WAT
+        reset_hour = 0
+        if (symbol not in candles 
+            or candles[symbol]["date"] != today_date 
+            or (wat_time.hour == reset_hour and wat_time.minute < 5)):
             candles[symbol] = {
                 "date": today_date,
                 "open": price,
